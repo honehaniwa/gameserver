@@ -27,10 +27,15 @@ class SafeUser(BaseModel):
 
 
 class RoomInfo(BaseModel):
+    """Roomの情報を返す"""
+
     room_id: int
     live_id: int
     joined_user_count: int
     max_user_count: int
+
+    class Config:
+        orm_mode = True
 
 
 class LiveDifficulty(IntEnum):
@@ -102,7 +107,11 @@ def _join_room(conn, room_id: int, token: str, difficulty: LiveDifficulty) -> No
         text(
             "INSERT INTO `room_member` (room_id, user_id, select_difficulty) VALUES (:room_id, :user_id, :select_difficulty)"
         ),
-        {"room_id": room_id, "user_id": user_info.id, "select_difficulty": difficulty},
+        {
+            "room_id": room_id,
+            "user_id": user_info.id,
+            "select_difficulty": difficulty.value,
+        },
     )
 
 
@@ -111,7 +120,7 @@ def _create_room(conn, token: str, live_id: int) -> int:
 
     result = conn.execute(
         text(
-            "INSERT INTO `room` (live_id, ceated_user_id) VALUES (:live_id, :ceated_user_id)"
+            "INSERT INTO `room` (live_id, created_user_id) VALUES (:live_id, :ceated_user_id)"
         ),
         {"live_id": live_id, "ceated_user_id": user_info.id},
     )
@@ -122,19 +131,26 @@ def _create_room(conn, token: str, live_id: int) -> int:
 
 def create_room(token: str, live_id: int, difficulty: LiveDifficulty) -> int:
     with engine.begin() as conn:
-        room_id = _create_room(conn, live_id)
+        room_id = _create_room(conn, token, live_id)
         _join_room(conn, room_id, token, difficulty)
 
         return room_id
 
 
-def _room_list(conn, token: str, live_id: int) -> list[RoomInfo]:
+def _room_list(conn, live_id: int) -> list[RoomInfo]:
     result = conn.execute(
-        text("SELECT `room_id`, `ive_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `token`=:token, `live_id`=:live_id"),
-        dict(token=token, live_id=live_id),
+        text(
+            "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id`=:live_id"
+        ),
+        dict(live_id=live_id),
     )
 
+    room_info_list = []
+    for row in result.all():
+        room_info_list.join(RoomInfo.from_orm(row))
+    return room_info_list
 
-def room_list(token: str, live_id: int) -> list[RoomInfo]:
+
+def room_list(live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
-        return _room_list(conn, token: str, live_id: int)
+        return _room_list(conn, live_id)

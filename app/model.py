@@ -26,6 +26,31 @@ class SafeUser(BaseModel):
         orm_mode = True
 
 
+class RoomInfo(BaseModel):
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int
+
+
+class LiveDifficulty(IntEnum):
+    normal = 1
+    hard = 2
+
+
+class JoinRoomResult(IntEnum):
+    Ok = 1
+    RoomFull = 2
+    Disbanded = 3
+    OtherError = 4
+
+
+class WaitRoomStatus(IntEnum):
+    Waiting = 1
+    LiveStart = 2
+    Dissolution = 3
+
+
 def create_user(name: str, leader_card_id: int) -> str:
     """Create new user and returns their token"""
     token = str(uuid.uuid4())
@@ -68,3 +93,48 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
         # print(result)
+
+
+def _join_room(conn, room_id: int, token: str, difficulty: LiveDifficulty) -> None:
+    user_info = get_user_by_token(token)
+
+    conn.execute(
+        text(
+            "INSERT INTO `room_member` (room_id, user_id, select_difficulty) VALUES (:room_id, :user_id, :select_difficulty)"
+        ),
+        {"room_id": room_id, "user_id": user_info.id, "select_difficulty": difficulty},
+    )
+
+
+def _create_room(conn, token: str, live_id: int) -> int:
+    user_info = get_user_by_token(token)
+
+    result = conn.execute(
+        text(
+            "INSERT INTO `room` (live_id, ceated_user_id) VALUES (:live_id, :ceated_user_id)"
+        ),
+        {"live_id": live_id, "ceated_user_id": user_info.id},
+    )
+
+    print(result.lastrowid)
+    return result.lastrowid
+
+
+def create_room(token: str, live_id: int, difficulty: LiveDifficulty) -> int:
+    with engine.begin() as conn:
+        room_id = _create_room(conn, live_id)
+        _join_room(conn, room_id, token, difficulty)
+
+        return room_id
+
+
+def _room_list(conn, token: str, live_id: int) -> list[RoomInfo]:
+    result = conn.execute(
+        text("SELECT `room_id`, `ive_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `token`=:token, `live_id`=:live_id"),
+        dict(token=token, live_id=live_id),
+    )
+
+
+def room_list(token: str, live_id: int) -> list[RoomInfo]:
+    with engine.begin() as conn:
+        return _room_list(conn, token: str, live_id: int)

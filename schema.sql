@@ -14,6 +14,7 @@ CREATE TABLE `room` (
   `room_id` bigint NOT NULL AUTO_INCREMENT,
   `live_id` int NOT NULL,
   `joined_user_count` int DEFAULT 0,
+  `status` int NOT NULL,
   `max_user_count` int DEFAULT 4,
   `created_user_id` bigint NOT NULL,
   PRIMARY KEY (`room_id`)
@@ -22,8 +23,8 @@ CREATE TABLE `room` (
 CREATE TABLE `room_member` (
   `room_id` bigint NOT NULL,
   `user_id` bigint NOT NULL,
-  `select_difficulty` int DEFAULT NULL,
-  `is_created_user` boolean NOT NULL,
+  `select_difficulty` int NOT NULL,
+  `is_host` boolean NOT NULL,
   PRIMARY KEY (`room_id`),
   UNIQUE KEY `room_id` (`room_id`)
 );

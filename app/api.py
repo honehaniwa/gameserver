@@ -8,7 +8,9 @@ from . import model
 from .model import (
     JoinRoomResult,
     LiveDifficulty,
+    ResultUser,
     RoomInfo,
+    RoomUser,
     SafeUser,
     WaitRoomStatus,
     get_user_by_token,
@@ -62,6 +64,15 @@ class RoomJoinResponse(BaseModel):
     join_room_result: JoinRoomResult
 
 
+class RoomWaitRequest(BaseModel):
+    room_id: int
+
+
+class RoomWaitResponse(BaseModel):
+    status: WaitRoomStatus
+    room_user_list: list[RoomUser]
+
+
 @app.post("/user/create", response_model=UserCreateResponse)
 def user_create(req: UserCreateRequest):
     """新規ユーザー作成"""
@@ -106,7 +117,7 @@ def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
     user = get_user_by_token(token)
     if user is None:
         return None
-    room_id = model.create_room(user.id, req.live_id, req.select_difficulty)
+    room_id = model.create_room(user, req.live_id, req.select_difficulty)
     return RoomCreateResponse(room_id=room_id)
 
 
@@ -123,5 +134,15 @@ def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
     user = get_user_by_token(token)
     if user is None:
         return None
-    join_room_result = model.room_join(user, req.room_id, req.select_difficulty)
-    return RoomListResponse(join_room_result=join_room_result)
+    join_room_result = model.join_room(user, req.room_id, req.select_difficulty)
+    return RoomJoinResponse(join_room_result=join_room_result)
+
+
+@app.post("/room/wait", response_model=RoomWaitResponse)
+def room_join(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
+    # print(req)
+    user = get_user_by_token(token)
+    if user is None:
+        return None
+    status, room_users = model.wait_room(user, req.room_id)
+    return RoomWaitResponse(status=status, room_user_list=room_users)

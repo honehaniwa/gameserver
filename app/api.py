@@ -5,7 +5,7 @@ from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from . import model
-from .model import JoinRoomResult, LiveDifficulty, RoomInfo, SafeUser, WaitRoomStatus
+from .model import JoinRoomResult, LiveDifficulty, RoomInfo, SafeUser, WaitRoomStatus, get_user_by_token
 
 app = FastAPI()
 
@@ -44,6 +44,15 @@ class RoomListRequest(BaseModel):
 
 class RoomListResponse(BaseModel):
     room_info_list: list[RoomInfo]
+
+
+class RoomJoinRequest(BaseModel):
+    room_id: int
+    select_difficulty: LiveDifficulty
+
+
+class RoomJoinResponse(BaseModel):
+    join_room_result: JoinRoomResult
 
 
 @app.post("/user/create", response_model=UserCreateResponse)
@@ -87,7 +96,10 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
 @app.post("/room/create", response_model=RoomCreateResponse)
 def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
     # print(req)
-    room_id = model.create_room(token, req.live_id, req.select_difficulty)
+    user = get_user_by_token(token)
+    if user is None:
+        return None
+    room_id = model.create_room(user.id, req.live_id, req.select_difficulty)
     return RoomCreateResponse(room_id=room_id)
 
 
@@ -96,3 +108,13 @@ def room_list(req: RoomListRequest, token: str = Depends(get_auth_token)):
     # print(req)
     room_info_list = model.room_list(req.live_id)
     return RoomListResponse(room_info_list=room_info_list)
+
+
+@app.post("/room/join", response_model=RoomJoinResponse)
+def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
+    # print(req)
+    user = get_user_by_token(token)
+    if user is None:
+        return None
+    join_room_result = model.room_join(user, req.room_id, req.select_difficulty)
+    return RoomListResponse(join_room_result=join_room_result)

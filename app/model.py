@@ -100,9 +100,7 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
         # print(result)
 
 
-def _join_room(conn, room_id: int, token: str, difficulty: LiveDifficulty) -> None:
-    user_info = get_user_by_token(token)
-
+def _join_room(conn, room_id: int, user_info: SafeUser, difficulty: LiveDifficulty) -> None:
     conn.execute(
         text(
             "INSERT INTO `room_member` (room_id, user_id, select_difficulty) VALUES (:room_id, :user_id, :select_difficulty)"
@@ -114,10 +112,19 @@ def _join_room(conn, room_id: int, token: str, difficulty: LiveDifficulty) -> No
         },
     )
 
+    conn.execute(
+        text(
+            "UPDATE `room` SET join_user_count=:name"
+        ),
+        {
+            "room_id": room_id,
+            "user_id": user_info.id,
+            "select_difficulty": difficulty.value,
+        },
+    )
 
-def _create_room(conn, token: str, live_id: int) -> int:
-    user_info = get_user_by_token(token)
 
+def _create_room(conn, user_info: SafeUser, live_id: int) -> int:
     result = conn.execute(
         text(
             "INSERT INTO `room` (live_id, created_user_id) VALUES (:live_id, :ceated_user_id)"
@@ -129,10 +136,10 @@ def _create_room(conn, token: str, live_id: int) -> int:
     return result.lastrowid
 
 
-def create_room(token: str, live_id: int, difficulty: LiveDifficulty) -> int:
+def create_room(user_info:  SafeUser, live_id: int, difficulty: LiveDifficulty) -> int:
     with engine.begin() as conn:
-        room_id = _create_room(conn, token, live_id)
-        _join_room(conn, room_id, token, difficulty)
+        room_id = _create_room(conn, user_info, live_id)
+        _join_room(conn, room_id, user_info, difficulty)
 
         return room_id
 
@@ -154,3 +161,21 @@ def _room_list(conn, live_id: int) -> list[RoomInfo]:
 def room_list(live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
         return _room_list(conn, live_id)
+
+
+def get_room_status_from_id(conn, room_id: int) -> RoomInfo:
+    result = conn.execute(
+        text(
+            "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `room_id`=:room_id"
+        ),
+        dict(room_id=room_id),
+    )
+    try:
+        row = result.one()
+    except Exception as e:
+        print(e)
+    return RoomInfo.from_orm(row)
+
+
+def join_room(user_info: SafeUser, room_id: int, selected_difficulty: LiveDifficulty) -> JoinRoomResult:
+    with engine.begin() as conn:

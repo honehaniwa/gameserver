@@ -100,7 +100,9 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
         # print(result)
 
 
-def _join_room(conn, room_id: int, user_info: SafeUser, difficulty: LiveDifficulty) -> None:
+def _join_room(
+    conn, room_id: int, user_info: SafeUser, difficulty: LiveDifficulty
+) -> None:
     conn.execute(
         text(
             "INSERT INTO `room_member` (room_id, user_id, select_difficulty) VALUES (:room_id, :user_id, :select_difficulty)"
@@ -113,9 +115,7 @@ def _join_room(conn, room_id: int, user_info: SafeUser, difficulty: LiveDifficul
     )
 
     conn.execute(
-        text(
-            "UPDATE `room` SET join_user_count=:name"
-        ),
+        text("UPDATE `room` SET join_user_count=:name"),
         {
             "room_id": room_id,
             "user_id": user_info.id,
@@ -136,7 +136,7 @@ def _create_room(conn, user_info: SafeUser, live_id: int) -> int:
     return result.lastrowid
 
 
-def create_room(user_info:  SafeUser, live_id: int, difficulty: LiveDifficulty) -> int:
+def create_room(user_info: SafeUser, live_id: int, difficulty: LiveDifficulty) -> int:
     with engine.begin() as conn:
         room_id = _create_room(conn, user_info, live_id)
         _join_room(conn, room_id, user_info, difficulty)
@@ -163,7 +163,7 @@ def room_list(live_id: int) -> list[RoomInfo]:
         return _room_list(conn, live_id)
 
 
-def get_room_status_from_id(conn, room_id: int) -> RoomInfo:
+def get_room_info_from_id(conn, room_id: int) -> RoomInfo:
     result = conn.execute(
         text(
             "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `room_id`=:room_id"
@@ -177,5 +177,18 @@ def get_room_status_from_id(conn, room_id: int) -> RoomInfo:
     return RoomInfo.from_orm(row)
 
 
-def join_room(user_info: SafeUser, room_id: int, selected_difficulty: LiveDifficulty) -> JoinRoomResult:
+def join_room(
+    user_info: SafeUser, room_id: int, selected_difficulty: LiveDifficulty
+) -> JoinRoomResult:
     with engine.begin() as conn:
+        # room に入れるかを見る
+        room = get_room_info_from_id(conn, room_id)
+        if room.joined_user_count < room.max_user.count:
+            _join_room(conn, room_id, user_info, selected_difficulty)
+            return JoinRoomResult.Ok
+        elif room.joined_user_count >= room.max_user.count:
+            return JoinRoomResult.RoomFull
+        elif room is None:
+            return JoinRoomResult.Disbanded
+        else:
+            return JoinRoomResult.OtherError

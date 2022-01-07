@@ -5,7 +5,14 @@ from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from . import model
-from .model import JoinRoomResult, LiveDifficulty, RoomInfo, SafeUser, WaitRoomStatus, get_user_by_token
+from .model import (
+    JoinRoomResult,
+    LiveDifficulty,
+    RoomInfo,
+    SafeUser,
+    WaitRoomStatus,
+    get_user_by_token,
+)
 
 app = FastAPI()
 
